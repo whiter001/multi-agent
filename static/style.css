@@ -232,3 +232,40 @@ button#send-btn {
 button#send-btn:hover {
     opacity: 0.9;
 }
+
+button#send-btn.btn-queue {
+    background-color: #f59e0b;
+}
+
+/* Task Status Bar */
+.task-status {
+    display: flex;
+    align-items: center;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    padding: 4px 12px 8px;
+    gap: 4px;
+}
+
+.ts-spinner {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border: 2px solid #555;
+    border-top-color: var(--accent-color);
+    border-radius: 50%;
+    animation: ts-spin 0.8s linear infinite;
+    flex-shrink: 0;
+}
+
+@keyframes ts-spin {
+    to { transform: rotate(360deg); }
+}
+
+.queue-badge {
+    background: #f59e0b22;
+    color: #f59e0b;
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-weight: 600;
+}

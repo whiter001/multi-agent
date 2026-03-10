@@ -4,9 +4,39 @@ const sendBtn = document.getElementById('send-btn');
 const connectionStatus = document.getElementById('connection-status');
 const statusQwen = document.getElementById('status-qwen');
 const statusGemini = document.getElementById('status-gemini');
+const taskStatusEl = document.getElementById('task-status');
 
 let socket;
 let reconnectInterval = 5000;
+
+// --- Task Queue ---
+let isRunning = false;
+const taskQueue = [];
+
+function updateTaskStatus() {
+    if (!isRunning && taskQueue.length === 0) {
+        taskStatusEl.style.display = 'none';
+        sendBtn.textContent = '发送';
+        sendBtn.classList.remove('btn-queue');
+        return;
+    }
+    taskStatusEl.style.display = 'flex';
+    const queuePart = taskQueue.length > 0 ? ` &nbsp;·&nbsp; <span class="queue-badge">${taskQueue.length} 个等待</span>` : '';
+    taskStatusEl.innerHTML = `<span class="ts-spinner"></span>&nbsp;执行中...${queuePart}`;
+    if (taskQueue.length > 0) {
+        sendBtn.textContent = `加入队列 (${taskQueue.length})`;
+        sendBtn.classList.add('btn-queue');
+    } else {
+        sendBtn.textContent = '发送';
+        sendBtn.classList.remove('btn-queue');
+    }
+}
+
+function sendTask(text) {
+    isRunning = true;
+    updateTaskStatus();
+    socket.send(JSON.stringify({ type: 'user_input', data: text }));
+}
 
 function connect() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -21,6 +51,9 @@ function connect() {
     socket.onclose = () => {
         connectionStatus.textContent = '离线 (重连中...)';
         connectionStatus.className = 'status-offline';
+        // Reset running state on disconnect; preserve queue so tasks retry after reconnect.
+        isRunning = false;
+        updateTaskStatus();
         setTimeout(connect, reconnectInterval);
     };
 
@@ -51,6 +84,14 @@ function handleServerMessage(msg) {
             break;
         case 'final_result':
             appendMessage('assistant', msg.data, true);
+            isRunning = false;
+            if (taskQueue.length > 0) {
+                const next = taskQueue.shift();
+                updateTaskStatus();
+                sendTask(next);
+            } else {
+                updateTaskStatus();
+            }
             break;
     }
 }
@@ -109,11 +150,18 @@ function updateAgentStatus(agent, isActive) {
 
 function sendMessage() {
     const text = userInput.value.trim();
-    if (text && socket.readyState === WebSocket.OPEN) {
-        appendMessage('user', text);
-        socket.send(JSON.stringify({ type: 'user_input', data: text }));
-        userInput.value = '';
-        userInput.style.height = 'auto';
+    if (!text || socket.readyState !== WebSocket.OPEN) return;
+
+    appendMessage('user', text);
+    userInput.value = '';
+    userInput.style.height = 'auto';
+
+    if (isRunning) {
+        // Previous task still running — enqueue.
+        taskQueue.push(text);
+        updateTaskStatus();
+    } else {
+        sendTask(text);
     }
 }
 

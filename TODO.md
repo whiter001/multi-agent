@@ -1,8 +1,10 @@
 # Multi-Agent Project Plan & TODO
 
 ## Project Overview
+
 A multi-agent system implemented in V, using **Minimax-m2.5** as the main orchestrator.
 The orchestrator can delegate tasks to sub-agents via CLI tools:
+
 - **Qwen**: `qwen -y -p "..."` (No proxy)
 - **Gemini**: `gemini -y -p "..."` (Uses proxy `http://127.0.0.1:7788`)
 
@@ -19,16 +21,19 @@ The orchestrator can delegate tasks to sub-agents via CLI tools:
 ## How to Run
 
 1. **Set API Key**:
+
    ```powershell
    $env:MINIMAX_API_KEY = "your_minimax_api_key_here"
    ```
 
 2. **Build and Run**:
+
    ```powershell
    v run src . "Ask Qwen for a coding plan and Gemini to review it."
    ```
 
 ## Design Highlights
+
 - **Proxy Isolation**: Proxy settings are set only during Gemini calls and reset immediately after.
 - **V-Native**: Built entirely in V for speed and small binary size.
 - **Orchestrator Logic**: Minimax-m2.5 is instructed to combine strengths of both sub-agents.

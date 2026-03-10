@@ -5,7 +5,7 @@
 ## 功能特性
 
 - **主协调器**: 使用 Minimax-m2.5 模型来协调任务
-- **子代理**: 
+- **子代理**:
   - **Qwen**: 擅长逻辑和通用任务
   - **Gemini**: 擅长创意写作和深度推理
 - **可配置**: 支持自定义 API 密钥、模型、温度和最大 token 数
@@ -22,7 +22,7 @@
 ### 构建
 
 ```bash
-v -o multi_agent.exe src/main.v
+v -o multi_agent src/
 ```
 
 ### 配置
@@ -32,26 +32,36 @@ v -o multi_agent.exe src/main.v
 ```ini
 api_key=你的minimax_api密钥
 model=MiniMax-M2.5
+api_url=https://api.minimaxi.com/v1/text/chatcompletion_v2
 ```
 
 ### 运行
 
+**CLI 模式：**
+
 ```bash
-./multi_agent.exe "你的任务描述"
+./multi_agent "你的任务描述"
+```
+
+**Web 界面模式：**
+
+```bash
+./multi_agent --web
+# 然后访问 http://localhost:18081
 ```
 
 ## 配置选项
 
-| 选项 | 默认值 | 说明 |
-|------|--------|------|
-| `api_key` | （必填） | Minimax API 密钥 |
-| `model` | `MiniMax-M2.5` | 模型名称 |
-| `temperature` | `0.7` | 采样温度 |
-| `max_tokens` | `4096` | 生成的最大 token 数 |
+| 选项          | 默认值         | 说明                |
+| ------------- | -------------- | ------------------- |
+| `api_key`     | （必填）       | Minimax API 密钥    |
+| `model`       | `MiniMax-M2.5` | 模型名称            |
+| `temperature` | `0.7`          | 采样温度            |
+| `max_tokens`  | `4096`         | 生成的最大 token 数 |
 
 ## 项目结构
 
-```
+```text
 multi-agent/
 ├── src/
 │   ├── main.v         # 入口文件

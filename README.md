@@ -5,7 +5,7 @@ A multi-agent system implemented in V language, with Minimax-m2.5 as the main or
 ## Features
 
 - **Main Orchestrator**: Uses Minimax-m2.5 model to coordinate tasks
-- **Sub-agents**: 
+- **Sub-agents**:
   - **Qwen**: Good for logic and general tasks
   - **Gemini**: Good for creative writing and deep reasoning
 - **Configurable**: Supports custom API key, model, temperature, and max tokens
@@ -22,7 +22,7 @@ A multi-agent system implemented in V language, with Minimax-m2.5 as the main or
 ### Build
 
 ```bash
-v -o multi_agent.exe src/main.v
+v -o multi_agent src/
 ```
 
 ### Configuration
@@ -32,26 +32,37 @@ Create config file at `~/.config/multi-agent/config`:
 ```ini
 api_key=your_minimax_api_key
 model=MiniMax-M2.5
+api_url=https://api.minimaxi.com/v1/text/chatcompletion_v2
 ```
 
 ### Run
 
+**CLI mode:**
+
 ```bash
-./multi_agent.exe "Your task description"
+./multi_agent "Your task description"
+```
+
+**Web interface mode:**
+
+```bash
+./multi_agent --web
+# Then open http://localhost:18081
 ```
 
 ## Configuration Options
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `api_key` | (required) | Minimax API key |
-| `model` | `MiniMax-M2.5` | Model name |
-| `temperature` | `0.7` | Sampling temperature |
-| `max_tokens` | `4096` | Maximum tokens to generate |
+| Option        | Default                                              | Description                |
+| ------------- | ---------------------------------------------------- | -------------------------- |
+| `api_key`     | (required)                                           | Minimax API key            |
+| `model`       | `MiniMax-M2.5`                                       | Model name                 |
+| `api_url`     | `https://api.minimaxi.com/v1/text/chatcompletion_v2` | API endpoint               |
+| `temperature` | `0.7`                                                | Sampling temperature       |
+| `max_tokens`  | `4096`                                               | Maximum tokens to generate |
 
 ## Project Structure
 
-```
+```text
 multi-agent/
 ├── src/
 │   ├── main.v         # Entry point

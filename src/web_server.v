@@ -4,7 +4,6 @@ import veb
 import net.websocket
 import os
 import json
-import time
 
 // --- Models for WebSocket communication ---
 
@@ -29,8 +28,7 @@ struct App {
 	veb.StaticHandler
 mut:
 	ws_server &websocket.Server = unsafe { nil }
-	api_key   string
-	model     string
+	cfg       Config
 }
 
 // Controller for the index page
@@ -63,12 +61,9 @@ fn (mut app App) on_message(mut ws_client websocket.Client, msg &websocket.Messa
 
 // This function bridges the AI logic with the WebSocket output
 fn (mut app App) run_ai_task(mut ws_client websocket.Client, task string) {
-	// 1. Initialize API Client
-	mut client := new_api_client(app.api_key, app.model)
-	
-	// 2. Set up a listener for the client to send messages back to WS
-	// (We will need to modify client.v slightly to support progress callbacks)
-	// For now, let's simulate the flow
+	// 1. Initialize API Client with full config
+	mut client := new_api_client(app.cfg.api_key, app.cfg.model)
+	client.set_config(app.cfg)
 	
 	send_ws_status(mut ws_client, 'orchestrator_text', '任务已接收，正在统筹调度...', '')
 	
@@ -99,8 +94,7 @@ pub fn start_web_server() {
 	}
 
 	mut app := App{
-		api_key: cfg.api_key
-		model:   cfg.model
+		cfg: cfg
 	}
 
 	// Initialize WebSocket Server on 18082
@@ -112,10 +106,10 @@ pub fn start_web_server() {
 		app.on_message(mut ws_client, msg)!
 	})
 	
-	s.on_connect(fn (mut ws_client websocket.Client) ! {
-		println('New WebSocket client connected: ${ws_client.id}')
+	s.on_connect(fn (mut ws_client websocket.ServerClient) !bool {
+		println('New WebSocket client connected: ${ws_client.client.id}')
 		return true
-	})
+	}) or { println('on_connect error: ${err}') }
 
 	// Run WS server in background
 	go s.listen()

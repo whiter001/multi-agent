@@ -43,6 +43,7 @@ fn load_config() !Config {
 			match key {
 				'api_key' { cfg.api_key = val }
 				'model'   { cfg.model = val }
+				'api_url' { cfg.api_url = val }
 				'temperature' { cfg.temperature = val.f64() }
 				'max_tokens'  { cfg.max_tokens = val.int() }
 				else {}

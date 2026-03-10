@@ -2,6 +2,7 @@ module main
 
 import net.http
 import json
+import net.websocket
 
 struct ChatMessage {
 pub mut:
@@ -31,11 +32,19 @@ fn new_api_client(api_key string, model string) ApiClient {
 		model: model
 		temperature: 0.7
 		max_tokens: 4096
-		system_prompt: 'You are an orchestrator AI. You have access to sub-agents: Qwen and Gemini.
-Use the tools call_qwen and call_gemini to delegate tasks. 
-Qwen is good for logic and general tasks. Gemini is good for creative writing and deep reasoning.
-Combine their results to fulfill the user request.
-When the task is complete, provide a final answer to the user.'
+		system_prompt: '你是主 Agent（Main Agent），负责全局统筹与调度。
+你的职责包括：
+1. 接收用户的最终目标。
+2. 将复杂任务拆解为可执行的子任务。
+3. 根据任务类型选择合适的子 Agent。
+   - Qwen (model: coder-model): 擅长逻辑推理、代码编写、结构化任务。
+   - Gemini (model: gemini-3-flash-preview): 擅长创意写作、深度分析、发散性思维。
+4. 向子 Agent 下达指令并收集结果。
+5. 整合所有子 Agent 的输出，生成最终答案。
+6. 处理异常、冲突、失败重试（如子 Agent 返回错误，应调整策略重新尝试）。
+7. 管理上下文、状态与资源，确保任务高效完成。
+
+请利用 call_qwen 和 call_gemini 工具来调度子任务。在任务完成后，给用户提供一个完整、专业且经过整合的最终答复。'
 	}
 }
 
@@ -52,12 +61,13 @@ fn escape_json_string(s string) string {
 	return s.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
 }
 
-fn (mut c ApiClient) chat(user_prompt string) !string {
+// chat_web is the core logic for the Web/WebSocket interface
+fn (mut c ApiClient) chat_web(mut ws_client websocket.Client, user_prompt string) !string {
 	c.messages << ChatMessage{role: 'user', content: user_prompt}
 	
 	mut final_answer := ''
 	
-	for i := 0; i < 5; i++ { // Max 5 rounds
+	for i := 0; i < 10; i++ { // Increased to 10 rounds for complex tasks
 		body := c.build_request_body()
 		
 		mut headers := http.new_header()
@@ -86,6 +96,8 @@ fn (mut c ApiClient) chat(user_prompt string) !string {
 		
 		msg := api_res.choices[0].message
 		if msg.content.len > 0 {
+			// Notify Web UI about orchestrator thought/text
+			send_ws_status(mut ws_client, 'orchestrator_text', msg.content, '')
 			println('Orchestrator: ${msg.content}')
 		}
 		
@@ -97,10 +109,19 @@ fn (mut c ApiClient) chat(user_prompt string) !string {
 		
 		if msg.tool_calls.len > 0 {
 			for tc in msg.tool_calls {
+				agent_name := if tc.function.name == 'call_qwen' { 'qwen' } else { 'gemini' }
+				
+				// 1. Notify Web UI: Tool Start
+				args_obj := json.decode(ToolArgs, tc.function.arguments) or { ToolArgs{prompt: tc.function.arguments} }
+				send_ws_status(mut ws_client, 'tool_start', args_obj.prompt, agent_name)
+				
 				println('Executing sub-agent tool: ${tc.function.name}...')
 				
-				// Call the robust tool execution logic from parser.v
+				// 2. Execute tool
 				result := execute_tool_call(tc)
+				
+				// 3. Notify Web UI: Tool Result
+				send_ws_status(mut ws_client, 'tool_result', result, agent_name)
 				
 				preview := if result.len > 100 { result[..100] + "..." } else { result }
 				println('Tool Result: ${preview}')
@@ -118,6 +139,34 @@ fn (mut c ApiClient) chat(user_prompt string) !string {
 		}
 	}
 	
+	return final_answer
+}
+
+// Keeping original chat method for CLI compatibility
+fn (mut c ApiClient) chat(user_prompt string) !string {
+	c.messages << ChatMessage{role: 'user', content: user_prompt}
+	mut final_answer := ''
+	for i := 0; i < 5; i++ {
+		body := c.build_request_body()
+		mut headers := http.new_header()
+		headers.add(.authorization, 'Bearer ${c.api_key}')
+		headers.add(.content_type, 'application/json')
+		req := http.Request{ method: .post, url: c.api_url, header: headers, data: body }
+		resp := req.do() or { return err }
+		api_res := json.decode(ApiResponse, resp.body) or { return error('Failed to decode: ${err}') }
+		msg := api_res.choices[0].message
+		c.messages << ChatMessage{ role: 'assistant', content: msg.content, tool_calls: msg.tool_calls }
+		if msg.tool_calls.len > 0 {
+			for tc in msg.tool_calls {
+				result := execute_tool_call(tc)
+				c.messages << ChatMessage{ role: 'tool', content: result, tool_call_id: tc.id }
+			}
+			continue
+		} else {
+			final_answer = msg.content
+			break
+		}
+	}
 	return final_answer
 }
 

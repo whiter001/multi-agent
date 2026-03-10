@@ -3,8 +3,26 @@ module main
 import os
 
 fn main() {
+	// First priority: Check for the --web flag
+	mut is_web := false
+	for arg in os.args {
+		if arg == '--web' {
+			is_web = true
+			break
+		}
+	}
+
+	if is_web {
+		println('Starting Web Mode...')
+		start_web_server()
+		return
+	}
+
+	// Second priority: CLI mode requires a task
 	if os.args.len < 2 {
-		println('Usage: multi-agent "your task description"')
+		println('Usage:')
+		println('  multi-agent "your task description"  (CLI Mode)')
+		println('  multi-agent --web                    (Web Interface Mode)')
 		return
 	}
 

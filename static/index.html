@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Agent Orchestrator</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <h2>Multi-Agent</h2>
+                <span>Orchestrator v0.1</span>
+            </div>
+            <nav class="agent-status">
+                <h3>Sub-Agents</h3>
+                <div class="agent-item" id="status-qwen">
+                    <span class="dot"></span> Qwen (Coder)
+                </div>
+                <div class="agent-item" id="status-gemini">
+                    <span class="dot"></span> Gemini (Reasoning)
+                </div>
+            </nav>
+            <div class="sidebar-footer">
+                <button id="clear-btn">清空对话</button>
+            </div>
+        </aside>
+
+        <!-- Main Chat Area -->
+        <main class="chat-area">
+            <header class="chat-header">
+                <div id="connection-status" class="status-offline">离线</div>
+                <div class="header-info">Minimax-M2.5 Orchestrator</div>
+            </header>
+            
+            <div id="chat-messages" class="chat-messages">
+                <!-- Welcome Message -->
+                <div class="message assistant">
+                    <div class="bubble">
+                        你好！我是主 Agent，负责统筹调度 Qwen 和 Gemini。请告诉我你的任务目标。
+                    </div>
+                </div>
+            </div>
+
+            <div class="input-area">
+                <div class="input-container">
+                    <textarea id="user-input" placeholder="输入任务指令..." rows="1"></textarea>
+                    <button id="send-btn">发送</button>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>

@@ -99,30 +99,8 @@ fn (mut c ApiClient) chat(user_prompt string) !string {
 			for tc in msg.tool_calls {
 				println('Executing sub-agent tool: ${tc.function.name}...')
 				
-				mut prompt := ''
-				args := tc.function.arguments
-				if args.contains('"prompt"') {
-					if start_idx := args.index('"prompt":') {
-						if content_start := args.index_after('"', start_idx + 9) {
-							if content_end := args.last_index('"') {
-								if content_end > content_start {
-									prompt = args[content_start + 1..content_end]
-								}
-							}
-						}
-					}
-				}
-				
-				if prompt == '' {
-					prompt = args
-				}
-
-				mut result := ''
-				if tc.function.name == 'call_qwen' {
-					result = run_qwen(prompt)
-				} else if tc.function.name == 'call_gemini' {
-					result = run_gemini(prompt)
-				}
+				// Call the robust tool execution logic from parser.v
+				result := execute_tool_call(tc)
 				
 				preview := if result.len > 100 { result[..100] + "..." } else { result }
 				println('Tool Result: ${preview}')

@@ -1,5 +1,12 @@
 module main
 
+import json
+
+// Tool argument structure for robust parsing
+struct ToolArgs {
+	prompt string
+}
+
 // MiniMax V2 Response Structs
 struct ApiResponse {
 	id      string
@@ -30,35 +37,24 @@ struct FunctionCall {
 	arguments string
 }
 
-// Function to handle tool execution
-fn (mut c ApiClient) execute_tools(tool_calls []ToolCall) []string {
-	mut results := []string{}
-	for tc in tool_calls {
-		name := tc.function.name
-		args_json := tc.function.arguments
-		
-		// Parse arguments
-		// Expecting {"prompt": "..."}
-		
-		// Simplified argument extraction
-		if prompt_start := args_json.index('"prompt":"') {
-			start := prompt_start + 10
-			if end := args_json.last_index('"') {
-				if end > start {
-					prompt := args_json[start..end]
-					
-					if name == 'call_qwen' {
-						results << run_qwen(prompt)
-					} else if name == 'call_gemini' {
-						results << run_gemini(prompt)
-					} else {
-						results << 'Error: Unknown tool ${name}'
-					}
-					continue
-				}
-			}
-		}
-		results << 'Error: Missing or invalid prompt argument in ${name}'
+// execute_tool_call handles a single tool call with robust JSON parsing
+fn execute_tool_call(tc ToolCall) string {
+	name := tc.function.name
+	args_json := tc.function.arguments
+	
+	// Use json.decode for robust parameter extraction
+	args := json.decode(ToolArgs, args_json) or {
+		// Fallback for simple strings if JSON decode fails
+		return 'Error: Failed to parse tool arguments for ${name}: ${err}'
 	}
-	return results
+
+	if args.prompt == '' {
+		return 'Error: Missing prompt argument for ${name}'
+	}
+
+	return match name {
+		'call_qwen' { run_qwen(args.prompt) }
+		'call_gemini' { run_gemini(args.prompt) }
+		else { 'Error: Unknown tool ${name}' }
+	}
 }

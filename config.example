@@ -1,0 +1,4 @@
+api_key=your_minimax_api_key_here
+model=MiniMax-M2.5
+temperature=0.7
+max_tokens=4096

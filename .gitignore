@@ -1,0 +1,29 @@
+# Compiled binaries
+multi_agent.exe
+multi_agent
+*.exe
+
+# V compiler cache
+*.o
+*.tmp
+*.o.d
+
+# OS files
+.DS_Store
+Thumbs.db
+.DS_Store?
+._*
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Logs and outputs
+*.log
+logs/
+
+# Temporary artifacts
+nul

@@ -4,6 +4,7 @@ import veb
 import net.websocket
 import os
 import json
+import time
 
 // --- Models for WebSocket communication ---
 
@@ -49,12 +50,17 @@ fn (mut app App) on_message(mut ws_client websocket.Client, msg &websocket.Messa
 	if msg.opcode == .text_frame {
 		payload := msg.payload.bytestr()
 		incoming := json.decode(WsIncomingMessage, payload) or { return }
-		
-		if incoming.msg_type == 'user_input' {
-			println('Received user input via WebSocket: ${incoming.data}')
-			
-			// Launch AI Task in a separate thread to avoid blocking WS
-			go app.run_ai_task(mut ws_client, incoming.data)
+
+		match incoming.msg_type {
+			'user_input' {
+				println('Received user input via WebSocket: ${incoming.data}')
+				// Launch AI Task in a separate thread to avoid blocking WS
+				go app.run_ai_task(mut ws_client, incoming.data)
+			}
+			'pong' {
+				// Browser confirmed alive — no action needed
+			}
+			else {}
 		}
 	}
 }
@@ -64,26 +70,49 @@ fn (mut app App) run_ai_task(mut ws_client websocket.Client, task string) {
 	// 1. Initialize API Client with full config
 	mut client := new_api_client(app.cfg.api_key, app.cfg.model)
 	client.set_config(app.cfg)
-	
-	send_ws_status(mut ws_client, 'orchestrator_text', '任务已接收，正在统筹调度...', '')
-	
-	result := client.chat_web(mut ws_client, task) or {
-		send_ws_status(mut ws_client, 'orchestrator_text', '发生错误: ${err}', '')
+
+	// If the client already disconnected before we start, abort silently.
+	send_ws_status(mut ws_client, 'orchestrator_text', '任务已接收，正在统筹调度...', '') or {
+		eprintln('WS client disconnected before task start: ${err}')
 		return
 	}
-	
-	send_ws_status(mut ws_client, 'final_result', result, '')
+
+	result := client.chat_web(mut ws_client, task) or {
+		// Best-effort: try to send the error message; ignore if client already gone.
+		send_ws_status(mut ws_client, 'orchestrator_text', '发生错误: ${err}', '') or {}
+		return
+	}
+
+	send_ws_status(mut ws_client, 'final_result', result, '') or {}
 }
 
-// Helper to send JSON messages back to the frontend
-fn send_ws_status(mut ws_client websocket.Client, m_type string, data string, agent string) {
+// Helper to send JSON messages back to the frontend.
+// Returns an error if the client has disconnected so callers can abort early.
+fn send_ws_status(mut ws_client websocket.Client, m_type string, data string, agent string) ! {
 	msg := WsOutgoingMessage{
 		msg_type: m_type
 		data:     data
 		agent:    agent
 	}
 	payload := json.encode(msg)
-	ws_client.write_string(payload) or { println('Failed to send WS message: ${err}') }
+	ws_client.write_string(payload)!
+}
+
+// ping_loop broadcasts an application-level ping to every connected client
+// every 25 seconds so the browser can reply and confirm it is still alive.
+fn ping_loop(ws_server &websocket.Server) {
+	for {
+		time.sleep(25 * time.second)
+		client_ids := rlock ws_server.server_state {
+			ws_server.server_state.clients.keys()
+		}
+		for id in client_ids {
+			mut sc := rlock ws_server.server_state {
+				ws_server.server_state.clients[id] or { continue }
+			}
+			send_ws_status(mut sc.client, 'ping', '', '') or {}
+		}
+	}
 }
 
 pub fn start_web_server() {
@@ -99,6 +128,8 @@ pub fn start_web_server() {
 
 	// Initialize WebSocket Server on 18082
 	mut s := websocket.new_server(.ip, 18082, '/ws')
+	// Transport-level WS ping every 25 s — keeps TCP alive and removes dead clients.
+	s.set_ping_interval(25)
 	app.ws_server = s
 	
 	// Map WS events
@@ -111,8 +142,14 @@ pub fn start_web_server() {
 		return true
 	}) or { println('on_connect error: ${err}') }
 
+	s.on_close(fn (mut ws_client websocket.Client, code int, reason string) ! {
+		println('WebSocket client disconnected: ${ws_client.id}, code: ${code}')
+	})
+
 	// Run WS server in background
 	go s.listen()
+	// Broadcast application-level ping every 25 s for browser heartbeat.
+	go ping_loop(app.ws_server)
 
 	println('🚀 Multi-Agent Web Server starting on http://localhost:18081')
 	println('📡 WebSocket listening on ws://localhost:18082/ws')

@@ -96,23 +96,24 @@ fn (mut c ApiClient) chat_web(mut ws_client websocket.Client, user_prompt string
 		
 		msg := api_res.choices[0].message
 		if msg.content.len > 0 {
-			// Notify Web UI about orchestrator thought/text
-			send_ws_status(mut ws_client, 'orchestrator_text', msg.content, '')
+			// Notify Web UI about orchestrator thought/text.
+			// If the client disconnected, abort the entire loop immediately.
+			send_ws_status(mut ws_client, 'orchestrator_text', msg.content, '') or { return err }
 			println('Orchestrator: ${msg.content}')
 		}
-		
+
 		c.messages << ChatMessage{
-			role: 'assistant', 
-			content: msg.content,
+			role: 'assistant'
+			content: msg.content
 			tool_calls: msg.tool_calls
 		}
-		
+
 		if msg.tool_calls.len > 0 {
 			// 1. Notify all tool starts before executing
 			for tc in msg.tool_calls {
 				agent_name := tool_agent_name(tc.function.name)
 				args_obj := json.decode(ToolArgs, tc.function.arguments) or { ToolArgs{prompt: tc.function.arguments} }
-				send_ws_status(mut ws_client, 'tool_start', args_obj.prompt, agent_name)
+				send_ws_status(mut ws_client, 'tool_start', args_obj.prompt, agent_name) or { return err }
 				println('Dispatching sub-agent: ${tc.function.name}...')
 			}
 			// 2. Execute all in parallel
@@ -120,7 +121,7 @@ fn (mut c ApiClient) chat_web(mut ws_client websocket.Client, user_prompt string
 			// 3. Collect results and notify Web UI
 			for r in results {
 				agent_name := tool_agent_name(r.tool_name)
-				send_ws_status(mut ws_client, 'tool_result', r.result, agent_name)
+				send_ws_status(mut ws_client, 'tool_result', r.result, agent_name) or { return err }
 				preview := if r.result.len > 100 { r.result[..100] + '...' } else { r.result }
 				println('Tool Result (${agent_name}): ${preview}')
 				c.messages << ChatMessage{

@@ -32,6 +32,12 @@ function connect() {
 
 function handleServerMessage(msg) {
     switch (msg.type) {
+        case 'ping':
+            // Reply to server heartbeat to confirm the connection is alive.
+            if (socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({ type: 'pong', data: '' }));
+            }
+            break;
         case 'orchestrator_text':
             appendMessage('assistant', msg.data);
             break;

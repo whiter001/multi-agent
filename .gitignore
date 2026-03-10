@@ -3,16 +3,27 @@ multi_agent.exe
 multi_agent
 *.exe
 
-# V compiler cache
+# macOS debug symbols
+*.dSYM
+
+# V compiler cache and build artifacts
 *.o
 *.tmp
 *.o.d
+*.c
+.vv
+.vweb/
+gen/
+
+# V language
+vls.log
 
 # OS files
 .DS_Store
 Thumbs.db
 .DS_Store?
 ._*
+*.lnk
 
 # Editor files
 *.swp
@@ -20,10 +31,22 @@ Thumbs.db
 *~
 .vscode/
 .idea/
+*.sublime-*
 
 # Logs and outputs
 *.log
 logs/
+output/
 
 # Temporary artifacts
 nul
+
+# macOS debug symbols
+*.dSYM
+
+# Environment variables
+.env
+.env.local
+
+# Test coverage
+coverage/

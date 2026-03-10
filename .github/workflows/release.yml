@@ -58,6 +58,7 @@ jobs:
           VFLAGS: ${{ matrix.vflags }}
         shell: bash
         run: |
+          mkdir -p ./bin
           v -o ./bin/multi_agent${{ matrix.bin_ext }} src/
           if [[ "${{ matrix.os }}" != "macos-latest" ]]; then
             strip --strip-unneeded ./bin/multi_agent${{ matrix.bin_ext }}

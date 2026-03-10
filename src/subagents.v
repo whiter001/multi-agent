@@ -1,46 +1,63 @@
 module main
 
 import os
+import time
 
-// Proxy settings for Gemini
-const gemini_proxy = 'http://127.0.0.1:7788'
+// agent_timeout is the maximum time to wait for any sub-agent CLI response.
+const agent_timeout = 120 * time.second
 
-// run_qwen executes the qwen CLI: qwen -y -m coder-model -p "prompt"
-fn run_qwen(prompt string) string {
-	println('Calling Qwen sub-agent (model: coder-model)...')
-	// Ensure qwen does not use proxy
-	os.setenv('http_proxy', '', true)
-	os.setenv('https_proxy', '', true)
-	os.setenv('HTTP_PROXY', '', true)
-	os.setenv('HTTPS_PROXY', '', true)
-
-	// Escape the prompt for shell
-	res := os.execute('qwen -y -m coder-model -p "${prompt.replace('"', '\\"')}"')
-	if res.exit_code != 0 {
-		return 'Error calling Qwen (exit ${res.exit_code}): ${res.output}'
+// run_agent_process spawns a CLI tool directly via os.Process (no shell),
+// which prevents shell injection via prompt content (backticks, $(), etc.).
+// extra_env keys with an empty value are REMOVED from the subprocess environment;
+// non-empty keys are set/overridden. All other parent env vars are inherited.
+fn run_agent_process(exe string, args []string, extra_env map[string]string, timeout time.Duration) string {
+	exe_path := os.find_abs_path_of_executable(exe) or {
+		return 'Error: ${exe} not found in PATH'
 	}
-	return res.output
+	mut env := os.environ()
+	for k, v in extra_env {
+		if v == '' {
+			env.delete(k)
+		} else {
+			env[k] = v
+		}
+	}
+	mut p := os.new_process(exe_path)
+	p.set_args(args)
+	p.set_environment(env)
+	p.set_redirect_stdio()
+	p.run()
+	// Timeout: kill the process if it does not finish within the deadline.
+	spawn fn [mut p, timeout]() {
+		time.sleep(timeout)
+		if p.is_alive() {
+			p.signal_kill()
+		}
+	}()
+	out := p.stdout_slurp()
+	p.wait()
+	if p.code != 0 {
+		return 'Error (exit ${p.code}): ${out}'
+	}
+	return out
 }
 
-// run_gemini executes the gemini CLI: gemini -y -m gemini-3-flash-preview -p "prompt"
+fn run_qwen(prompt string) string {
+	println('Calling Qwen sub-agent (model: coder-model)...')
+	return run_agent_process('qwen', ['-y', '-m', 'coder-model', '-p', prompt], {
+		'http_proxy':  ''
+		'https_proxy': ''
+		'HTTP_PROXY':  ''
+		'HTTPS_PROXY': ''
+	}, agent_timeout)
+}
+
 fn run_gemini(prompt string) string {
 	println('Calling Gemini sub-agent (model: gemini-3-flash-preview)...')
-	// Set proxy for Gemini
-	os.setenv('http_proxy', gemini_proxy, true)
-	os.setenv('https_proxy', gemini_proxy, true)
-	os.setenv('HTTP_PROXY', gemini_proxy, true)
-	os.setenv('HTTPS_PROXY', gemini_proxy, true)
-
-	res := os.execute('gemini -y -m gemini-3-flash-preview -p "${prompt.replace('"', '\\"')}"')
-	
-	// Reset proxy after call
-	os.setenv('http_proxy', '', true)
-	os.setenv('https_proxy', '', true)
-	os.setenv('HTTP_PROXY', '', true)
-	os.setenv('HTTPS_PROXY', '', true)
-
-	if res.exit_code != 0 {
-		return 'Error calling Gemini (exit ${res.exit_code}): ${res.output}'
-	}
-	return res.output
+	return run_agent_process('gemini', ['-y', '-m', 'gemini-3-flash-preview', '-p', prompt], {
+		'http_proxy':  'http://127.0.0.1:7788'
+		'https_proxy': 'http://127.0.0.1:7788'
+		'HTTP_PROXY':  'http://127.0.0.1:7788'
+		'HTTPS_PROXY': 'http://127.0.0.1:7788'
+	}, agent_timeout)
 }

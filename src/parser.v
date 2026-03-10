@@ -58,3 +58,39 @@ fn execute_tool_call(tc ToolCall) string {
 		else { 'Error: Unknown tool ${name}' }
 	}
 }
+// ToolCallResult holds the output of one executed tool call.
+struct ToolCallResult {
+	id        string
+	tool_name string
+	result    string
+}
+
+// tool_agent_name maps a tool function name to a human-readable agent label.
+fn tool_agent_name(tool_name string) string {
+	return match tool_name {
+		'call_qwen'   { 'qwen' }
+		'call_gemini' { 'gemini' }
+		else          { tool_name }
+	}
+}
+
+// execute_tool_calls_parallel runs all tool calls concurrently via goroutines
+// and collects results through a buffered channel. Results arrive in completion
+// order, not submission order; callers match by ToolCallResult.id.
+fn execute_tool_calls_parallel(tool_calls []ToolCall) []ToolCallResult {
+	ch := chan ToolCallResult{cap: tool_calls.len}
+	for tc in tool_calls {
+		spawn fn [tc, ch]() {
+			ch <- ToolCallResult{
+				id:        tc.id
+				tool_name: tc.function.name
+				result:    execute_tool_call(tc)
+			}
+		}()
+	}
+	mut results := []ToolCallResult{cap: tool_calls.len}
+	for _ in tool_calls {
+		results << <-ch
+	}
+	return results
+}

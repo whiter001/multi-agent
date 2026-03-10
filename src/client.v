@@ -108,28 +108,25 @@ fn (mut c ApiClient) chat_web(mut ws_client websocket.Client, user_prompt string
 		}
 		
 		if msg.tool_calls.len > 0 {
+			// 1. Notify all tool starts before executing
 			for tc in msg.tool_calls {
-				agent_name := if tc.function.name == 'call_qwen' { 'qwen' } else { 'gemini' }
-				
-				// 1. Notify Web UI: Tool Start
+				agent_name := tool_agent_name(tc.function.name)
 				args_obj := json.decode(ToolArgs, tc.function.arguments) or { ToolArgs{prompt: tc.function.arguments} }
 				send_ws_status(mut ws_client, 'tool_start', args_obj.prompt, agent_name)
-				
-				println('Executing sub-agent tool: ${tc.function.name}...')
-				
-				// 2. Execute tool
-				result := execute_tool_call(tc)
-				
-				// 3. Notify Web UI: Tool Result
-				send_ws_status(mut ws_client, 'tool_result', result, agent_name)
-				
-				preview := if result.len > 100 { result[..100] + "..." } else { result }
-				println('Tool Result: ${preview}')
-
+				println('Dispatching sub-agent: ${tc.function.name}...')
+			}
+			// 2. Execute all in parallel
+			results := execute_tool_calls_parallel(msg.tool_calls)
+			// 3. Collect results and notify Web UI
+			for r in results {
+				agent_name := tool_agent_name(r.tool_name)
+				send_ws_status(mut ws_client, 'tool_result', r.result, agent_name)
+				preview := if r.result.len > 100 { r.result[..100] + '...' } else { r.result }
+				println('Tool Result (${agent_name}): ${preview}')
 				c.messages << ChatMessage{
 					role: 'tool'
-					content: result
-					tool_call_id: tc.id
+					content: r.result
+					tool_call_id: r.id
 				}
 			}
 			continue
@@ -157,9 +154,10 @@ fn (mut c ApiClient) chat(user_prompt string) !string {
 		msg := api_res.choices[0].message
 		c.messages << ChatMessage{ role: 'assistant', content: msg.content, tool_calls: msg.tool_calls }
 		if msg.tool_calls.len > 0 {
-			for tc in msg.tool_calls {
-				result := execute_tool_call(tc)
-				c.messages << ChatMessage{ role: 'tool', content: result, tool_call_id: tc.id }
+			// Execute all tool calls in parallel
+			results := execute_tool_calls_parallel(msg.tool_calls)
+			for r in results {
+				c.messages << ChatMessage{ role: 'tool', content: r.result, tool_call_id: r.id }
 			}
 			continue
 		} else {
